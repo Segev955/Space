@@ -1,6 +1,34 @@
 import math
 import os
 import csv
+import pygame
+import os
+
+#pygame init
+pygame.font.init()
+pygame.mixer.init()
+first_distance_from_moon = 13748
+first_dist = 181 * 1000
+WIDTH, HEIGHT = 900, 900
+WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Bereshit Landing")
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+FPS = 60
+VEL = 5
+SPACESHIP_WIDTH, SPACESHIP_HEIGHT = 55, 40
+MOON_WIDTH, MOON_HEIGHT = 100, 100
+SPACESHIP_IMAGE = pygame.image.load(
+    os.path.join('images', 'spaceship.png'))
+MOON_IMAGE = pygame.transform.scale(pygame.image.load(
+    os.path.join('images', 'moon.png')),(WIDTH, MOON_HEIGHT))
+SPACE = pygame.transform.scale(pygame.image.load(
+    os.path.join('images', 'space.png')), (WIDTH, HEIGHT))
+
+
+#landing init
 WEIGHT_EMP = 165  # kg
 WEIGHT_FULE = 420  # kg
 WEIGHT_FULL = WEIGHT_EMP + WEIGHT_FULE  # kg
@@ -9,6 +37,23 @@ SECOND_ENG_F = 25  # N
 MAIN_BURN = 0.15  # liter per sec, 12 liter per m'
 SECOND_BURN = 0.009  # liter per sec 0.6 liter per m'
 ALL_BURN = MAIN_BURN + 8 * SECOND_BURN
+
+
+
+def draw_window(spaceship,angle):
+    SPACESHIP = pygame.transform.rotate(pygame.transform.scale(SPACESHIP_IMAGE, (SPACESHIP_WIDTH, SPACESHIP_HEIGHT)), angle)
+    WIN.blit(SPACE, (0, 0))
+    WIN.blit(MOON_IMAGE,(0,800))
+    WIN.blit(SPACESHIP, (spaceship.x, spaceship.y))
+    pygame.display.update()
+
+
+
+def spaceship_handle_movement(distance, dist, spaceship):
+    dx = dist/first_dist
+    dy=distance/first_distance_from_moon
+    spaceship.x= WIDTH - WIDTH*dy -MOON_WIDTH
+    spaceship.y = HEIGHT - HEIGHT * dy-MOON_HEIGHT
 
 
 def accMax(weight: float) -> float:
@@ -50,6 +95,8 @@ def makeCsv(l,folder='logs',csvname='bereshit_102'):
 # 14095, 955.5, 24.8, 2.0
 if __name__ == '__main__':
     tocsv=[]
+    spaceship = pygame.Rect(0, 0, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
+    clock = pygame.time.Clock()
     print("Simulating Bereshit's Landing:")
     # starting point:
     vertical_speed = 24.8
@@ -62,15 +109,17 @@ if __name__ == '__main__':
     acceleration = 0  # Acceleration rate (m/s^2)
     fuel = 121
     weight = WEIGHT_EMP + fuel
-    tocsv.append(['time', 'vertical_speed', 'horizontal_speed', 'dist', 'distance_from_moon', 'angle', 'weight', 'acceleration'])
+    tocsv.append(['time', 'vertical_speed', 'horizontal_speed', 'dist', 'distance_from_moon', 'angle', 'weight', 'acceleration', 'fuel'])
     print(tocsv[0])
     NN = 0.7  # rate[0,1]
 
 
     # ***** main simulation loop ******
+    c=0
     while distance_from_moon > 0:
+        c+=1
         if time % 10 == 0 or distance_from_moon < 100:
-            tocsv.append([time, vertical_speed, horizontal_speed, dist, distance_from_moon, angle, weight, acceleration])
+            tocsv.append([time, vertical_speed, horizontal_speed, dist, distance_from_moon, angle, weight, acceleration, fuel])
             print(tocsv[-1])
         # over 2 km above the ground
         if distance_from_moon > 2000:  # maintain a vertical speed of [20-25] m/s
@@ -114,4 +163,8 @@ if __name__ == '__main__':
         dist -= horizontal_speed * dt
         vertical_speed -= v_acc * dt
         distance_from_moon -= dt * vertical_speed
-makeCsv(tocsv)
+        clock.tick(FPS)
+        spaceship_handle_movement(distance_from_moon,dist, spaceship)
+        draw_window(spaceship,angle)
+    makeCsv(tocsv)
+    print(c)
