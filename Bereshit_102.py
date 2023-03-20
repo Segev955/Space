@@ -185,7 +185,7 @@ def main(simulation=1, first_distance_from_moon=first_distance_from_moon):
     if simulation== 1:
         makeCsv(tocsv,csvname=csv_unique_name())
 
-    # show the results for 5 seconds
+    # show the results for 10 seconds
     time.sleep(10)
 
     # repeat the gui for 5 times
