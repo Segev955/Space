@@ -5,8 +5,9 @@ import pygame
 import os
 
 # pygame init
+import Ship
 import autoDriver
-from arcade import clamp
+
 
 SPEED = 0.00001
 
@@ -29,20 +30,6 @@ MOON_IMAGE = pygame.transform.scale(pygame.image.load(
     os.path.join('images', 'moon.png')), (WIDTH, MOON_HEIGHT))
 SPACE = pygame.transform.scale(pygame.image.load(
     os.path.join('images', 'space.png')), (WIDTH, HEIGHT))
-
-# landing init
-WEIGHT_EMP = 165  # kg
-WEIGHT_FULE = 420  # kg
-WEIGHT_FULL = WEIGHT_EMP + WEIGHT_FULE  # kg
-MAIN_ENG_F = 430  # N
-SECOND_ENG_F = 25  # N
-MAIN_BURN = 0.15  # liter per sec, 12 liter per m'
-SECOND_BURN = 0.009  # liter per sec 0.6 liter per m'
-ALL_BURN = MAIN_BURN + 8 * SECOND_BURN
-
-RADIUS = 3475 * 1000  # meters
-ACC = 1.622  # m/s^2
-EQ_SPEED = 1700  # m/s
 
 
 def draw_window(spaceship, angle, data={}):
@@ -69,25 +56,6 @@ def spaceship_movement(distance, dist, spaceship):
     dy = distance / first_distance_from_moon
     spaceship.x = WIDTH - WIDTH * dy - MOON_HEIGHT
     spaceship.y = HEIGHT - HEIGHT * dy - MOON_HEIGHT
-
-
-def accMax(weight: float) -> float:
-    return acc(weight, True, 8)
-
-
-def acc(weight: float, main: bool, seconds: int) -> float:
-    t = 0
-    if main:
-        t += MAIN_ENG_F
-    t += seconds * SECOND_ENG_F
-    ans = t / weight
-    return ans
-
-
-def getAcc(speed):
-    n = abs(speed) / EQ_SPEED
-    ans = (1 - n) * ACC
-    return ans
 
 
 def csv_unique_name():
@@ -118,93 +86,88 @@ def makeCsv(l, folder='logs', csvname='bereshit_102'):
 # 14095, 955.5, 24.8, 2.0
 def main(simulation=1, first_distance_from_moon=first_distance_from_moon):
     tocsv = []
+    ship = Ship.Ship(24.8, 932, 181 * 1000, 58.3, first_distance_from_moon, 1, 0, 121)
     spaceship = pygame.Rect(0, 0, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
     # starting point:
-    vertical_speed = 24.8
-    horizontal_speed = 932
-    dist = 181 * 1000
-    angle = 58.3  # zero is vertical (as in landing)
-    distance_from_moon = first_distance_from_moon
     _time = 0
-    dt = 1  # sec
-    acceleration = 0  # Acceleration rate (m/s^2)
-    fuel = 121
-    weight = WEIGHT_EMP + fuel
+    p = 0.04
+    i = 0.0003
+    d = 0.2
 
-    driver = autoDriver.autoDriver(distance_from_moon)
+    driver = autoDriver.autoDriver(p, i, d)
 
     print(f"simulation {simulation} started")
     if simulation == 1:
         print("Simulating Bereshit's Landing:")
         tocsv.append(['time', 'vertical_speed', 'horizontal_speed', 'dist', 'distance_from_moon', 'angle', 'weight',
-                      'acceleration', 'fuel'])
+                      'acceleration', 'fuel', 'PID', 'NN'])
         print(tocsv[0])
     NN = 0.7  # rate[0,1]
+    pid = 0
+    last_NN = NN
+    last_pid = pid
+
 
     # ***** main simulation loop ******
-    while distance_from_moon > 0:
-
-        driver.location = distance_from_moon
-        p, i, d = driver.pid()
-        pid = p + i + d
-        print("NN: ", NN)
-        print("PID: ", pid)
-
-        if simulation == 1 and (_time % 10 == 0 or distance_from_moon < 100):
+    while ship.distance_from_moon > 0:
+        if simulation == 1 and (_time % 10 == 0 or ship.distance_from_moon < 100):
             tocsv.append(
-                [_time, vertical_speed, horizontal_speed, dist, distance_from_moon, angle, weight, acceleration, fuel])
+                [_time, ship.vertical_speed, ship.horizontal_speed, ship.dist, ship.distance_from_moon, ship.angle,
+                 ship.weight, ship.acceleration, ship.fuel, pid, NN])
             print(tocsv[-1])
+        pid = driver.pid(ship.vertical_speed, 23)
         # over 2 km above the ground
-        if distance_from_moon > 2000:  # maintain a vertical speed of [20-25] m/s
-            if vertical_speed > 25:
-                NN += 0.003 * dt  # more power for braking
-            if vertical_speed < 20:
-                NN -= 0.003 * dt  # less power for braking
+        if ship.distance_from_moon > 2000:  # maintain a vertical speed of [20-25] m/s
+            if ship.vertical_speed > 25:
+                NN = max(min(last_NN+last_pid, 1),0)  # more power for braking
+            if ship.vertical_speed < 20:
+                NN = max(min(last_NN+last_pid, 1),0)  # less power for braking
         # lower than 2 km - horizontal speed should be close to zero
         else:
-            if angle > 3:
-                angle -= 3  # rotate to vertical position.
+            if ship.angle > 3:
+                ship.angle -= 3  # rotate to vertical position.
             else:
-                angle = 0
-            NN = 0.5 + (SPEED * pid)  # brake slowly, a proper PID controller here is needed!
-            print(f'brake slowly, NN={NN}, PID={pid}')
-            if horizontal_speed < 2:
+                ship.angle = 0
+            NN = max(min(last_NN+last_pid, 1),0)  # brake slowly, a proper PID controller here is needed!
+            if ship.horizontal_speed < 2:
                 horizontal_speed = 0
-            if distance_from_moon < 125:  # very close to the ground!
+            if ship.distance_from_moon < 125:  # very close to the ground!
                 NN = 1
-                if vertical_speed < 5:
-                    NN = 0.7  # if it is slow enough - go easy on the brakes
-        if distance_from_moon < 5:  # no need to stop
+                if ship.vertical_speed < 5:
+                    NN = max(min(last_NN+last_pid, 1),0)  # if it is slow enough - go easy on the brakes
+        if ship.distance_from_moon < 5:  # no need to stop
             NN = 0.4
 
         # main computations
-        ang_rad = math.radians(angle)
-        h_acc = math.sin(ang_rad) * acceleration
-        v_acc = math.cos(ang_rad) * acceleration
-        vacc = getAcc(horizontal_speed)
-        _time += dt
-        dw = dt * ALL_BURN * NN
-        if fuel > 0:
-            fuel -= dw
-            weight = WEIGHT_EMP + fuel
-            acceleration = NN * accMax(weight)
+        ang_rad = math.radians(ship.angle)
+        h_acc = math.sin(ang_rad) * ship.acceleration
+        v_acc = math.cos(ang_rad) * ship.acceleration
+        vacc = ship.getAcc(ship.horizontal_speed)
+        _time += ship.dt
+        dw = ship.dt * ship.ALL_BURN * NN
+        if ship.fuel > 0:
+            ship.fuel -= dw
+            weight = ship.WEIGHT_EMP + ship.fuel
+            ship.acceleration = NN * ship.accMax(weight)
 
         else:  # ran out of fuel
-            acceleration = 0
+            ship.acceleration = 0
 
         v_acc -= vacc
-        if horizontal_speed > 0:
-            horizontal_speed -= h_acc * dt
-        dist -= horizontal_speed * dt
-        vertical_speed -= v_acc * dt
-        distance_from_moon -= dt * vertical_speed
+        if ship.horizontal_speed > 0:
+            ship.horizontal_speed -= h_acc * ship.dt
+        ship.dist -= ship.horizontal_speed * ship.dt
+        ship.vertical_speed -= v_acc * ship.dt
+        ship.distance_from_moon -= ship.dt * ship.vertical_speed
 
         # update gui
-        spaceship_movement(distance_from_moon, dist, spaceship)
-        data = {'time': round(_time, 2), 'vertical speed': round(vertical_speed, 2),
-                'horizontal speed': round(horizontal_speed, 2), 'distance': round(distance_from_moon, 2),
-                'wait': round(weight, 2), 'fuel': round(fuel, 2)}
-        draw_window(spaceship, angle, data)
+        spaceship_movement(ship.distance_from_moon, ship.dist, spaceship)
+        data = {'time': round(_time, 2), 'vertical speed': round(ship.vertical_speed, 2),
+                'horizontal speed': round(ship.horizontal_speed, 2), 'distance': round(ship.distance_from_moon, 2),
+                'wait': round(ship.weight, 2), 'fuel': round(ship.fuel, 2), 'NN': round(NN, 2), 'PID': round(pid, 2)}
+        draw_window(spaceship, ship.angle, data)
+        last_NN = NN
+        last_pid = pid
         time.sleep(0.01)
 
     # making a csv file of the data

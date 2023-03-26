@@ -1,17 +1,19 @@
-from arcade import clamp
 
 class autoDriver:
-    def __init__(self, location):
-        # self.ship = ship
-        self.location = location
-        self.last = self.location  # last location
-        self.i = 0
+    def __init__(self, p, i, d):
+        self.p = p
+        self.i = i
+        self.d = d
+        self.last_i = 0
+        self.last_vs = 0
 
-    def pid(self):
-        p = self.location
-        i = self.i + 0.2 * self.location
-        d = self.location - self.last
+    def pid(self, vs, dvs):
+        p = vs - dvs
+        i = self.last_i + p
+        d = vs - self.last_vs
+        if self.last_vs == 0:
+            d = 0
+        self.last_i = i  # update
+        self.last_vs = vs  # update
 
-        self.last = self.location  # save the last location
-
-        return p, i * 0.05, d
+        return (self.p * p) + (self.i * i) + (self.d * d)
