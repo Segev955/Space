@@ -20,7 +20,7 @@ class PID:
         return control_out
 
 
-def constrain(val, min, max):
+def constrain(val, max, min):
     if val > max:
         return max
     elif val < min:
