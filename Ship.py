@@ -42,3 +42,28 @@ class Ship:
         ans = (1 - n) * self.ACC
         return ans
 
+    def desired_vs(self):
+        maxAlt = 30000
+        if self.distance_from_moon > maxAlt:
+            return 0
+        if self.distance_from_moon > 500:
+            return 24
+        if self.distance_from_moon > 200:
+            return 12
+        if self.distance_from_moon > 50:
+            return 6
+        if self.distance_from_moon > 20:
+            return 2
+        return 3
+
+    def desired_hs(self):
+        minAlt = 2000
+        maxAlt = 30000
+        if self.distance_from_moon < minAlt:
+            return 0
+        if self.distance_from_moon > maxAlt:
+            return self.EQ_SPEED
+        norm = pow((self.distance_from_moon - minAlt) / (maxAlt - minAlt),0.70)
+        dhs = norm * self.EQ_SPEED
+        return dhs
+

@@ -4,10 +4,10 @@ import time
 import pygame
 import os
 
+import PID
 # pygame init
 import Ship
 import autoDriver
-
 
 SPEED = 0.00001
 
@@ -103,40 +103,51 @@ def main(simulation=1, first_distance_from_moon=first_distance_from_moon):
                       'acceleration', 'fuel', 'PID', 'NN'])
         print(tocsv[0])
     NN = 0.7  # rate[0,1]
-    pid = 0
     last_NN = NN
-    last_pid = pid
-
+    last_pid = 0
+    pid2 = PID.PID(p,i,d, 100)
+    con = 0
 
     # ***** main simulation loop ******
     while ship.distance_from_moon > 0:
+        # dhs = ship.desired_hs()
+        # dvs = ship.desired_vs()
+        # error = ship.vertical_speed - dvs
+        # gas = pid2.update(error, 1)
+        # nn = NN + gas
+        # if 0 <= nn <= 1:
+        #     NN = nn
+
+
+        pid = driver.pid(ship.vertical_speed, 23)  # dvs = 23
+        NN = max(min(last_NN + pid, 1), 0)
         if simulation == 1 and (_time % 10 == 0 or ship.distance_from_moon < 100):
             tocsv.append(
                 [_time, ship.vertical_speed, ship.horizontal_speed, ship.dist, ship.distance_from_moon, ship.angle,
                  ship.weight, ship.acceleration, ship.fuel, pid, NN])
             print(tocsv[-1])
-        pid = driver.pid(ship.vertical_speed, 23)
         # over 2 km above the ground
-        if ship.distance_from_moon > 2000:  # maintain a vertical speed of [20-25] m/s
-            if ship.vertical_speed > 25:
-                NN = max(min(last_NN+last_pid, 1),0)  # more power for braking
-            if ship.vertical_speed < 20:
-                NN = max(min(last_NN+last_pid, 1),0)  # less power for braking
-        # lower than 2 km - horizontal speed should be close to zero
+        # if ship.distance_from_moon > 2000:  # maintain a vertical speed of [20-25] m/s
+        #     if ship.vertical_speed > 25:
+        #         NN = max(min(last_NN + last_pid, 1), 0)  # more power for braking
+        #     if ship.vertical_speed < 20:
+        #         NN = max(min(last_NN + last_pid, 1), 0)  # less power for braking
+        # # lower than 2 km - horizontal speed should be close to zero
+        # else:
+        ang = ship.angle
+        if ship.angle > 3:
+            ship.angle -= 3  # rotate to vertical position.
         else:
-            if ship.angle > 3:
-                ship.angle -= 3  # rotate to vertical position.
-            else:
-                ship.angle = 0
-            NN = max(min(last_NN+last_pid, 1),0)  # brake slowly, a proper PID controller here is needed!
-            if ship.horizontal_speed < 2:
-                horizontal_speed = 0
-            if ship.distance_from_moon < 125:  # very close to the ground!
-                NN = 1
-                if ship.vertical_speed < 5:
-                    NN = max(min(last_NN+last_pid, 1),0)  # if it is slow enough - go easy on the brakes
-        if ship.distance_from_moon < 5:  # no need to stop
-            NN = 0.4
+            ship.angle -= ang
+        # NN = max(min(last_NN + last_pid, 1), 0)  # brake slowly, a proper PID controller here is needed!
+        # if ship.horizontal_speed < 2:
+        #     horizontal_speed = 0
+        # if ship.distance_from_moon < 125:  # very close to the ground!
+        #     NN = 1
+        #     if ship.vertical_speed < 5:
+        #         NN = max(min(last_NN + last_pid, 1), 0)  # if it is slow enough - go easy on the brakes
+        # if ship.distance_from_moon < 5:  # no need to stop
+        #     NN = 0.4
 
         # main computations
         ang_rad = math.radians(ship.angle)

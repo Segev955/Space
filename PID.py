@@ -12,17 +12,20 @@ class PID:
         if self.first_run:
             self.last_error = error
             self.first_run = False
-        self.integral += self.I * error *dt
-        diff = (error - self.last_error)/dt
-        const_integral = constrain(self.integral,self.max_i,-self.max_i)
-        control_out = self.P * error +self.D*diff+const_integral
+        self.integral += self.I * error * dt
+        diff = (error - self.last_error) / dt
+        const_integral = constrain(self.integral, self.max_i, -self.max_i)
+        control_out = self.P * error + self.D * diff + const_integral
         self.last_error = error
         return control_out
 
 
-def constrain(val, max , min):
+def constrain(val, min, max):
     if val > max:
         return max
     elif val < min:
         return min
     return val
+
+
+
