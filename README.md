@@ -3,7 +3,7 @@
 # Space
 Ex1
 
-<img src="https://i.imgur.com/4J42YrL.gif" width="480" height="270">
+![Example](https://i.imgur.com/4J42YrL.gif)
 
 חלק א:
 
