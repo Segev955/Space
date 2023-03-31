@@ -4,7 +4,6 @@ import time
 import pygame
 import os
 
-import PID
 # pygame init
 import Ship
 import autoDriver
@@ -52,9 +51,10 @@ def draw_window(spaceship, angle, data={}):
 
 
 def spaceship_movement(distance, dist, spaceship):
-    dx = dist / first_dist
+    last_dist = -88605.0146196441
+    dx = (dist - last_dist) / (first_dist - last_dist)
     dy = distance / first_distance_from_moon
-    spaceship.x = WIDTH - WIDTH * dy - MOON_HEIGHT
+    spaceship.x = WIDTH - WIDTH * dx - MOON_HEIGHT
     spaceship.y = HEIGHT - HEIGHT * dy - MOON_HEIGHT
 
 
@@ -86,7 +86,7 @@ def makeCsv(l, folder='logs', csvname='bereshit_102'):
 # 14095, 955.5, 24.8, 2.0
 def main(simulation=1, first_distance_from_moon=first_distance_from_moon):
     tocsv = []
-    ship = Ship.Ship(24.8, 932, 181 * 1000, 58.3, first_distance_from_moon, 1, 0, 121)
+    ship = Ship.Ship(24.8, 932, first_dist, 58.3, first_distance_from_moon, 1, 0, 121)
     spaceship = pygame.Rect(0, 0, SPACESHIP_WIDTH, SPACESHIP_HEIGHT)
     # starting point:
     _time = 0
@@ -100,60 +100,44 @@ def main(simulation=1, first_distance_from_moon=first_distance_from_moon):
     if simulation == 1:
         print("Simulating Bereshit's Landing:")
         tocsv.append(['time', 'vertical_speed', 'horizontal_speed', 'dist', 'distance_from_moon', 'angle', 'weight',
-                      'acceleration', 'fuel', 'PID', 'NN'])
+                      'acceleration', 'dvs', 'fuel', 'PID', 'NN'])
         print(tocsv[0])
     NN = 0.7  # rate[0,1]
     last_NN = NN
-    last_pid = 0
-    pid2 = PID.PID(p,i,d, 100)
+    pid = 0
+    dvs = ship.desired_vs()
+    # pid2 = PID.PID(p,i,d, 100)
 
     # ***** main simulation loop ******
     while ship.distance_from_moon > 0:
-        # ------------------PID2---------------------------
-        dhs = ship.desired_hs()
+        # # ------------------PID2---------------------------
+        # dhs = ship.desired_hs()
+        # dvs = ship.desired_vs()
+        # error = ship.vertical_speed - dvs
+        # gas = pid2.update(error, ship.dt)
+        # # print(gas)
+        # nn = NN + gas
+        # if 0 <= nn <= 1:
+        #     NN = nn
+        # # ------------------PID2---------------------------
+
+        # ------------------PID1---------------------------
         dvs = ship.desired_vs()
-        error = ship.vertical_speed - dvs
-        gas = pid2.update(error, ship.dt)
-        print(gas)
-        nn = NN + gas
-        if 0 <= nn <= 1:
-            NN = nn
-        # ------------------PID2---------------------------
-
-
+        pid = driver.pid(ship.vertical_speed, dvs)  # dvs = 23
+        NN = max(min(last_NN + pid, 1), 0)
         # ------------------PID1---------------------------
-        # pid = driver.pid(ship.vertical_speed, 23)  # dvs = 23
-        # NN = max(min(last_NN + pid, 1), 0)
-        # ------------------PID1---------------------------
-
-
+        tocsv.append(
+            [_time, ship.vertical_speed, ship.horizontal_speed, ship.dist, ship.distance_from_moon, ship.angle,
+             ship.weight, ship.acceleration, dvs, ship.fuel, pid, NN])
         if simulation == 1 and (_time % 10 == 0 or ship.distance_from_moon < 100):
-            tocsv.append(
-                [_time, ship.vertical_speed, ship.horizontal_speed, ship.dist, ship.distance_from_moon, ship.angle,
-                 ship.weight, ship.acceleration, ship.fuel, gas, NN])
             print(tocsv[-1])
-        # over 2 km above the ground
-        # if ship.distance_from_moon > 2000:  # maintain a vertical speed of [20-25] m/s
-        #     if ship.vertical_speed > 25:
-        #         NN = max(min(last_NN + last_pid, 1), 0)  # more power for braking
-        #     if ship.vertical_speed < 20:
-        #         NN = max(min(last_NN + last_pid, 1), 0)  # less power for braking
-        # # lower than 2 km - horizontal speed should be close to zero
-        # else:
         ang = ship.angle
-        if ship.angle > 3:
-            ship.angle -= 3  # rotate to vertical position.
-        else:
-            ship.angle -= ang
-        # NN = max(min(last_NN + last_pid, 1), 0)  # brake slowly, a proper PID controller here is needed!
-        # if ship.horizontal_speed < 2:
-        #     horizontal_speed = 0
-        # if ship.distance_from_moon < 125:  # very close to the ground!
-        #     NN = 1
-        #     if ship.vertical_speed < 5:
-        #         NN = max(min(last_NN + last_pid, 1), 0)  # if it is slow enough - go easy on the brakes
-        # if ship.distance_from_moon < 5:  # no need to stop
-        #     NN = 0.4
+        if ship.distance_from_moon < 2000:
+            if ship.angle > 3:
+                ship.angle -= 3  # rotate to vertical position.
+                ship.horizontal_speed -= 2
+            else:
+                ship.angle -= ang
 
         # main computations
         ang_rad = math.radians(ship.angle)
@@ -173,6 +157,9 @@ def main(simulation=1, first_distance_from_moon=first_distance_from_moon):
         v_acc -= vacc
         if ship.horizontal_speed > 0:
             ship.horizontal_speed -= h_acc * ship.dt
+
+            if ship.angle == 0:
+                ship.horizontal_speed = 0
         ship.dist -= ship.horizontal_speed * ship.dt
         ship.vertical_speed -= v_acc * ship.dt
         ship.distance_from_moon -= ship.dt * ship.vertical_speed
@@ -181,12 +168,15 @@ def main(simulation=1, first_distance_from_moon=first_distance_from_moon):
         spaceship_movement(ship.distance_from_moon, ship.dist, spaceship)
         data = {'time': round(_time, 2), 'vertical speed': round(ship.vertical_speed, 2),
                 'horizontal speed': round(ship.horizontal_speed, 2), 'distance': round(ship.distance_from_moon, 2),
-                'wait': round(ship.weight, 2), 'fuel': round(ship.fuel, 2), 'NN': round(NN, 2), 'PID': round(gas, 2)}
+                'wait': round(ship.weight, 2), 'dvs': round(dvs, 2), 'fuel': round(ship.fuel, 2), 'NN': round(NN, 2),
+                'PID': round(pid, 5)}
         draw_window(spaceship, ship.angle, data)
-        # last_NN = NN
-        # last_pid = pid
+        last_NN = NN
         time.sleep(0.01)
 
+    tocsv.append(
+        [_time, ship.vertical_speed, ship.horizontal_speed, ship.dist, ship.distance_from_moon, ship.angle,
+         ship.weight, ship.acceleration, dvs, ship.fuel, pid, NN])
     # making a csv file of the data
     if simulation == 1:
         makeCsv(tocsv, csvname=csv_unique_name())

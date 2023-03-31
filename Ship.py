@@ -46,10 +46,18 @@ class Ship:
         maxAlt = 30000
         if self.distance_from_moon > maxAlt:
             return 0
-        if self.distance_from_moon > 500:
+        if self.distance_from_moon > 2000:
             return 24
-        if self.distance_from_moon > 200:
+        if self.distance_from_moon > 1000:
+            return 20
+        if self.distance_from_moon > 500:
+            return 15
+        if self.distance_from_moon > 300:
             return 12
+        if self.distance_from_moon > 200:
+            return 10
+        if self.distance_from_moon > 100:
+            return 8
         if self.distance_from_moon > 50:
             return 6
         if self.distance_from_moon > 20:

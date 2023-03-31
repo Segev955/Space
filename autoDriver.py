@@ -9,14 +9,17 @@ class autoDriver:
 
     def pid(self, vs, dvs):
         p = vs - dvs
+
         ii = self.last_i + p
         if -100 <= ii <= 100:
             i = ii
+        else:
+            i = self.last_i
         d = vs - self.last_vs
         if self.last_vs == 0:
             d = 0
         self.last_i = i  # update
         self.last_vs = vs  # update
-        print(f'p: {p}, i: {i}, d: {d}')
+        # print(f'p: {p}, i: {i}, d: {d}')
 
         return (self.p * p) + (self.i * i) + (self.d * d)
